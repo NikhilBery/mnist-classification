@@ -2,15 +2,18 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import time
+from sklearn.model_selection import train_test_split
+from sklearn.model_selection import GridSearchCV
+from sklearn.metrics import classification_report
 from sklearn.datasets import fetch_openml
-from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import SGDClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
-from sklearn.linear_model import LogisticRegression, SGDClassifier
 from sklearn import svm
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.metrics import classification_report
 from sklearn.pipeline import Pipeline
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.ensemble import RandomForestClassifier
  
 
 #----------FETCH MNIST Data-----------
@@ -45,7 +48,7 @@ X_train = pca.transform(X_train)
 X_test = pca.transform(X_test)
 
 
-#------GridSearchCV to select optimal parameters-----
+#------GRIDSEARCHCV for Hyperparameter optimization-----
 #NOTE: GridSearch CV is computationally expensive and time consuming. 
 #Please comment out this section(until Evaluate Performance) and use the optimal parameters as plotted in the Readme.txt 
 #unless you want to play around with different parameters.
@@ -77,30 +80,18 @@ Parameters_Scores.to_csv("GridSearch_sgd_results.csv")
 print(search_sgd.best_params_)
 
 #---KNN---
-#params_knn = {
-#        'weights': ('uniform', 'distance'),
-#        'n_neighbors': [i for i in [1,5,10,15]],
-#        'metric': ('euclidean', 'manhattan', 'minkowski')
-#        }
-#Knn = KNeighborsClassifier(algorithm = 'auto', n_jobs = -1)
-#search_knn = GridSearchCV(Knn, params_knn, iid=False, n_jobs=-1)
-#search_knn.fit(X_train, y_train)
-#print("Best parameter (CV score=%0.3f):" % search_knn.best_score_)
-#Parameters_Scores_knn = pd.DataFrame(search_knn.cv_results_)
-#Parameters_Scores_knn.to_csv("GridSearch_knn_results.csv")
-#print(search_knn.best_params_)
-
-params_knn1 = {
-        'n_neighbors': [i for i in [4,5,6,7,8]], 	#set parameters to run cross-validation on for Stochaistic Gradient Descent
-        'metric': ('euclidean', 'minkowski')
+params_knn = {
+        'weights': ('uniform', 'distance'),    #set parameters to run cross-validation on for KNearestNeighbours
+        'n_neighbors': [i for i in [1,5,10,15]],
+        'metric': ('euclidean', 'manhattan', 'minkowski')
         }
-Knn1 = KNeighborsClassifier(weights = 'distance', algorithm = 'auto', n_jobs = -1) 	#set model parameters
-search_knn1 = GridSearchCV(Knn1, params_knn1, iid=False, n_jobs=-1) 	#set gridsearch cv parameters
-search_knn1.fit(X_train, y_train) 	#search for optimal parameters
-print("Best parameter (CV score=%0.3f):" % search_knn1.best_score_)
-Parameters_Scores_knn1 = pd.DataFrame(search_knn1.cv_results_) 	#store results in a pd dataframe
-Parameters_Scores_knn1.to_csv("GridSearch_knn_results1.csv")
-print(search_knn1.best_params_)
+Knn = KNeighborsClassifier(algorithm = 'auto', n_jobs = -1)    #set model parameters
+search_knn = GridSearchCV(Knn, params_knn, iid=False, n_jobs=-1)   #set gridsearch cv parameters
+search_knn.fit(X_train, y_train)   #search for optimal parameters
+print("Best parameter (CV score=%0.3f):" % search_knn.best_score_)
+Parameters_Scores_knn = pd.DataFrame(search_knn.cv_results_)   	#store results in a pd dataframe
+Parameters_Scores_knn.to_csv("GridSearch_knn_results.csv")
+print(search_knn.best_params_)
 
 #---SVM---
 params_svm = {
@@ -117,11 +108,28 @@ Parameters_Scores_svm = pd.DataFrame(search_svm.cv_results_)
 Parameters_Scores_svm.to_csv("GridSearch_svm_results.csv")
 print(search_svm.best_params_)
 
-#--------Evaluate Performance-----
+#---Random Forest---
+params_rf = {
+        'n_estimators': [50, 100, 150, 200, 300],
+        'max_depth': [10, 50, 100],
+        'min_samples_split': [2, 4, 6],
+        'max_features': ['sqrt', 'log2']
+}
+Rf = RandomForestClassifier(n_jobs = -1, random_state = 0, bootstrap = True)
+search_rf = GridSearchCV(Rf, params_rf, iid=False, n_jobs=-1)
+search_rf.fit(X_train, y_train)
+print("Best parameter (CV score=%0.3f):" % search_rf.best_score_)
+Parameters_Scores_rf = pd.DataFrame(search_rf.cv_results_)
+Parameters_Scores_rf.to_csv("GridSearch_rf_results.csv")
+print(search_rf.best_params_)
 
+#--------EVALUATE PERFORMANCE-----
+#---Set Model parameters using optimal hyperparameters from GridSearchCV
 logisticRegr = LogisticRegression(C = 0.01, solver = 'newton-cg', multi_class = 'multinomial', tol = 0.001, penalty = 'l2', max_iter = 500, n_jobs = -1)
 SGD = SGDClassifier(loss = 'log', alpha = 0.0001, penalty='l2', early_stopping=True, max_iter=500, tol=1e-5, random_state=0, n_jobs=-1)
 SVM = svm.SVC(C = 1, coef0 = 1, degree = 4, kernel = 'poly', gamma = 'scale', shrinking = True, tol = 0.001, random_state = 0, decision_function_shape = 'ovr')
+KNN = KNeighborsClassifier(algorithm = 'auto', n_jobs = -1, weights = 'distance', n_neighbors = 5, metric = 'euclidean')
+RF = RandomForestClassifier(n_estimators=300, max_depth= 100, min_samples_split=2, max_features='sqrt', n_jobs = -1, random_state = 0, bootstrap = True)
 
 time0 = time.time()
 logisticRegr.fit(X_train,y_train)
@@ -146,3 +154,19 @@ score2 = SVM.score(X_test, y_test)
 report2 = classification_report(y_test, predictions2)
 print('Score: %f' % (score2) , time.time()-time2)
 print(report2)
+
+time3 = time.time()
+KNN.fit(X_train,y_train)
+predictions3 = KNN.predict(X_test)
+score3 = KNN.score(X_test, y_test)
+report3 = classification_report(y_test, predictions3)
+print('Score: %f' % (score3) , time.time()-time3)
+print(report3)
+
+time4 = time.time()
+RF.fit(X_train,y_train)
+predictions4 = RF.predict(X_test)
+score4 = RF.score(X_test, y_test)
+report4 = classification_report(y_test, predictions4)
+print('Score: %f' % (score4) , time.time()-time4)
+print(report4)
